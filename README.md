@@ -8,7 +8,7 @@ SciMARS provides a seven-role execution team and a separate harness optimizer. T
 
 ![SciMARS overview: a seven-role execution team and recursive improvement of role procedures and coordination contracts](media/scimars-overview.png)
 
-[Connect your team](docs/custom_teams.md) · [AppWorld quickstart](#appworld-quickstart) · [Design](docs/architecture.md) · [Configuration and evaluation](docs/reproduction.md) · [Your own Python task](docs/custom_tasks.md)
+[Connect your team](docs/custom_teams.md) · [AppWorld quickstart](#appworld-quickstart) · [Memory](docs/memory.md) · [Design](docs/architecture.md) · [Configuration and evaluation](docs/reproduction.md) · [Your own Python task](docs/custom_tasks.md)
 
 ## Connect your existing team
 
@@ -58,15 +58,29 @@ mah2 appworld --task 4ec8de5_1 --method harness2 \
 
 The AppWorld configuration uses `z-ai/glm-5.3-flashx`, two outer rounds, and one shared API allowance per task. These are recorded settings, not a promise of current endpoint availability. Check your provider and rates before using a different configuration. `--appworld-root`, `--appworld-python`, and `--config` support other installation locations.
 
-## Three methods, one execution team
+## Five settings, one execution team
 
-| AppWorld method | What it does |
+| AppWorld `--method` | What it does |
 |---|---|
-| `base` | Runs the fixed seven-role team without outer revisions. |
+| `base` | Runs the fixed seven-role team once, without outer revisions. |
 | `harness2` | Proposes role and coordination changes separately, probes candidates, and composes a successor. |
-| `mass` | Uses the released MASS workflow revision and selection procedure with the same team executor. |
+| `integrate` | Integrated workflow search: the released MASS revision and selection procedure with the same team executor (alias `mass`). |
+| `memory` | The base team plus a shared memory graph; optionally seeded by a persistent store built on disjoint tasks. |
+| `memory_harness2` | Memory graph plus Harness² with a third, memory-policy editor; each proposal is probed and the composer combines them. |
 
-MASS requires `python scripts/fetch_dependencies.py --include-mass`. Its source is obtained separately and is not redistributed here. The AppWorld adapter runs Python/API interactions through the shared team; it does not require the Qwen-code executor used by the local-file MASS adapter. This is a workflow-search adaptation, not the full trained MASS system. See [the comparison protocol](docs/reproduction.md).
+```bash
+python scripts/build_appworld_memory.py --output runs/appworld_store --execute   # optional, about $1-2
+mah2 appworld --task 1150ed6_2 --method memory_harness2 --memory-store runs/appworld_store/store \
+  --output runs/mh2-1150ed6_2 --budget 1.0 --execute --grade
+```
+
+All five share the team, task information, model and the $1 per-task allowance (editing, probes,
+retries and selection included). The `fixes` block of `config/appworld.json` applies to every method:
+the public `complete_task` contract in team and selector prompts, recoverable syntax/JSON step errors,
+4096-token code replies, scoped editor patches, head-and-tail evidence and completed-run-first selection.
+`--paper-settings` turns it off to reproduce the recorded configuration. See [memory](docs/memory.md).
+
+`integrate` requires `python scripts/fetch_dependencies.py --include-mass`. Its source is obtained separately and is not redistributed here. The AppWorld adapter runs Python/API interactions through the shared team; it does not require the Qwen-code executor used by the local-file MASS adapter. This is a workflow-search adaptation, not the full trained MASS system. See [the comparison protocol](docs/reproduction.md).
 
 ## How it works
 

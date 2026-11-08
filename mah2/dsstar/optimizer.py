@@ -293,6 +293,16 @@ def editor_evidence(ev,max_bytes):
         limit=max(32,limit//2)
 
 class Experiment:
+    # Budget order of stages; memory-enabled subclasses insert proposal_c/candidate_c.
+    STAGES=('reference','proposal_a','proposal_b','candidate_a','candidate_b','composer','successor','selector','reflector')
+    SELECTABLE=('reference','candidate_a','candidate_b','successor')
+
+    def validate_harness(self,candidate,base,scope,stage):
+        return validate(candidate,base,scope)
+
+    def scope_rule(self,stage,rule):
+        return rule
+
     def __init__(self,config,directory,client_factory=Client):
         self.c,self.root,self.client_factory=config,Path(directory),client_factory
         self.root.mkdir(parents=True,exist_ok=False)
@@ -311,7 +321,7 @@ class Experiment:
         if self.c.get('budget_policy')=='carry_forward':
             # Prefix envelopes release unused earlier funds, while reserving the
             # configured shares of every future stage and the separate next round.
-            order=[s for s in ('reference','proposal_a','proposal_b','candidate_a','candidate_b','composer','successor','selector','reflector') if s in self.c['stage_shares']]
+            order=[s for s in self.STAGES if s in self.c['stage_shares']]
             prefix=sum(self.c['stage_shares'][s] for s in order[:order.index(stage)+1])
             spent=sum(b.charged for b in self.budgets.values())
             cap=max(0.,self.c['allowance_usd']*prefix-spent)
@@ -372,7 +382,7 @@ class Experiment:
     def select(self,packet,choices,fallback):
         """Compare runnable programs with task/public outputs only; no grader access."""
         if self.c.get('selection_pool') == 'current-round':
-            choices={k:v for k,v in choices.items() if k in ('reference','candidate_a','candidate_b','successor')}
+            choices={k:v for k,v in choices.items() if k in self.SELECTABLE}
         viable={label:harness for label,harness in choices.items()
                 if json.loads((self.root/label/'outcome.json').read_text())['runnable']}
         if not viable:return fallback
@@ -500,6 +510,7 @@ class Experiment:
             if stage=='proposal_a':scope_rule='Revise role instructions only. Preserve the entire coordination object exactly.'
             elif stage=='proposal_b':scope_rule='Revise exactly one coordination route or contract. Preserve all role instructions exactly; endpoint guidance belongs inside sender_instruction/receiver_instruction of the contract.'
             elif stage=='composer':scope_rule='Revise role instructions as needed. Coordination must exactly equal either the base coordination or the Codex candidate_b coordination. Never invent or alter coordination yourself.'
+        scope_rule=self.scope_rule(stage,scope_rule)
         mission=prompt+'\n\n'+SURFACE+'\nMANDATORY SCOPE: '+scope_rule+'\n\nEVIDENCE:\n'+json.dumps(view,ensure_ascii=False)
         if self.c.get('public_output_contract'):
             from mah2.output_contract import PUBLIC_OUTPUT_CONTRACT
@@ -541,7 +552,7 @@ class Experiment:
                     mission+='\nRequested event:\n'+json.dumps(found[0])
                     feedback=''
                     continue
-                harness=validate(record['harness'],ev['base_harness'],scope)
+                harness=self.validate_harness(record['harness'],ev['base_harness'],scope,stage)
                 if self.c.get('codex_coordination') or self.c.get('scoped_glm_coordination'):
                     validate_hybrid_edit(stage,harness,ev)
                     if stage=='composer' and harness['coordination']!=ev['base_harness']['coordination'] and not any(r.startswith('candidate_b:') for r in record.get('evidence',[])):

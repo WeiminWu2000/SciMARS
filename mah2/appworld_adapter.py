@@ -25,6 +25,19 @@ Only public APIs are permitted. Do not access host files, ground truth, evaluato
 database internals, private APIs, or network services. No import appworld.
 Each role receives the same task; handoff fields and role procedures may vary.
 Return one JSON object as requested. Runtime success alone is not task correctness.'''
+# Restates the public supervisor.complete_task API documentation (no grader information).
+COMPLETION_CONTRACT = (
+    'Completion contract (public supervisor.complete_task documentation): pass answer if and only if the '
+    'task asks for information, and make it only the requested value (a number, yes/no, or a specific '
+    'name/entity), never a sentence, summary or status report. If the task asks you to perform actions '
+    'rather than answer a question, call apis.supervisor.complete_task() with no answer once the actions '
+    'are verified.')
+RETRY_NOTE = ('Your previous reply was not one complete JSON object ({error}). Reply again with one complete, '
+              'shorter JSON object containing only the requested fields.')
+
+
+def system_prompt(config):
+    return SYSTEM + ('\n' + COMPLETION_CONTRACT if config.get('completion_contract') else '')
 
 
 def write_json(path, value):
@@ -43,7 +56,7 @@ def parse_json(text):
 
 class World:
     def __init__(self, task, experiment, directory, config):
-        self.log = open(Path(directory) / 'world_stderr.log', 'w')
+        self.log = open(Path(directory) / 'world_stderr.log', 'a')
         self.env = dict(os.environ, APPWORLD_ROOT=str(Path(os.environ.get('APPWORLD_ROOT', ROOT / 'appworld_data')).resolve()))
         self.p = subprocess.Popen(
             [os.environ.get('MAH2_APPWORLD_PYTHON', str(ROOT / '.venv-appworld/bin/python')), '-m', 'mah2.appworld_worker',
@@ -51,7 +64,7 @@ class World:
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.log,
             text=True, bufsize=1)
         try:
-            self.info = self.read(180)
+            self.info = self.read(300)
         except Exception:
             self.close()
             raise
@@ -125,27 +138,59 @@ class Team:
                           dict(id=e['id'],code=e['code'],output=e['output'][-6000:])
                           for e in self.events if e['kind']=='execution'][-6:])
         self.event(kind='handoff', receiver=role, prompt=prompt)
-        response = self.g.request({'messages':[{'role':'system','content':SYSTEM},
-                                              {'role':'user','content':json.dumps(prompt)}],
-                                   'max_tokens':self.c.get('max_output_tokens',2048),
-                                   'response_format':{'type':'json_object'}})
-        text = response['choices'][0]['message'].get('content') or ''
-        self.event(kind='role_output', role=role, text=text)
-        return parse_json(text)
+        return self.request_reply(role, prompt, self.token_cap(role))
+
+    def token_cap(self, role):
+        """Code-writing roles may use execution_output_tokens (long programs were cut off at 2048)."""
+        default = self.c.get('max_output_tokens', 2048)
+        if role in ('analyzer', 'coder', 'debugger', 'finalizer'):
+            return self.c.get('execution_output_tokens', default)
+        return default
+
+    def request_reply(self, role, prompt, max_tokens, parse=parse_json):
+        """One role completion. With recoverable_step_errors, an unparseable reply (usually cut off at
+        max_tokens) is re-requested once instead of aborting the rollout; the retry is paid and logged."""
+        messages = [{'role': 'system', 'content': system_prompt(self.c)},
+                    {'role': 'user', 'content': json.dumps(prompt)}]
+        for attempt in range(2 if self.c.get('recoverable_step_errors') else 1):
+            response = self.g.request({'messages': messages, 'max_tokens': max_tokens,
+                                       'response_format': {'type': 'json_object'}})
+            text = response['choices'][0]['message'].get('content') or ''
+            self.event(kind='role_output', role=role, text=text)
+            try:
+                return parse(text)
+            except (ValueError, json.JSONDecodeError) as exc:
+                if attempt or not self.c.get('recoverable_step_errors'):
+                    raise
+                self.event(kind='reply_retry', role=role, error=f'{type(exc).__name__}: {exc}')
+                messages = messages + [{'role': 'user', 'content': RETRY_NOTE.format(error=exc)}]
 
     def run(self):
         experiment = 'mah2/' + hashlib.sha256(str(self.root.resolve()).encode()).hexdigest()[:24]
         write_json(self.root/'harness.json', self.h)
-        world = World(self.task, experiment, self.root, self.c)
-        self.info = world.info
-        self.state['question'] = self.info['instruction']
         programs = []
         completed = False
         error = None
+        world = None
 
         def execute(reply):
             nonlocal completed
             code = reply.get('code')
+            if self.c.get('recoverable_step_errors'):
+                # Malformed code is an observation for the debugger, not the end of the rollout.
+                problem = None
+                if not isinstance(code, str):
+                    problem = 'Host rejected reply: "code" must be a string of Python.'
+                else:
+                    try:
+                        ast.parse(code)
+                    except SyntaxError as exc:
+                        problem = f'Traceback (host syntax check, nothing executed):\nSyntaxError: {exc}'
+                if problem:
+                    code = code if isinstance(code, str) else json.dumps(code)
+                    self.state.update(code=code, execution=problem)
+                    self.event(kind='execution', code=code, output=problem, completed=completed, executed=False)
+                    return dict(output=problem, completed=completed, error=True)
             if not isinstance(code, str):
                 raise ValueError('Execution role must return string code')
             programs.append(code)
@@ -156,6 +201,18 @@ class Team:
             return result
 
         try:
+            # Worker start-up is inside the rollout's error handling: a slow or failed start (seen
+            # under GPFS load) fails this rollout only, never the whole method-task run.
+            for attempt in range(2):
+                try:
+                    world = World(self.task, experiment, self.root, self.c)
+                    break
+                except (TimeoutError, RuntimeError) as exc:
+                    self.event(kind='world_start_failure', attempt=attempt, error=f'{type(exc).__name__}: {exc}')
+                    if attempt:
+                        raise
+            self.info = world.info
+            self.state['question'] = self.info['instruction']
             execute(self.ask('analyzer', 'Inspect relevant API documentation and public state. Return {"code": "Python"}. Do not mutate app state yet.'))
             for step in range(self.c.get('max_team_steps', 8)):
                 if completed:
@@ -180,7 +237,8 @@ class Team:
             error = f'{type(exc).__name__}: {exc}'
             self.event(kind='rollout_failure', error=error)
         finally:
-            world.close()
+            if world is not None:
+                world.close()
         # This is a trajectory, not a standalone replay script: observations
         # between blocks can determine subsequent actions.
         program = '\n\n'.join(f'# interaction {i}\n{x}' for i,x in enumerate(programs))
@@ -198,7 +256,7 @@ def grade_selected(outcome, destination):
     result = subprocess.run([os.environ.get('MAH2_APPWORLD_PYTHON', str(ROOT/'.venv-appworld/bin/python')), '-m',
                              'mah2.appworld_worker', '--grade', '--task', outcome['task_id'],
                              '--experiment', outcome['experiment']], cwd=ROOT, env=env,
-                            capture_output=True, text=True, timeout=180)
+                            capture_output=True, text=True, timeout=600)
     (Path(destination)/'grading_stderr.log').write_text(result.stderr)
     result.check_returncode()
     report = json.loads(result.stdout)

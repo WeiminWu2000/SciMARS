@@ -26,7 +26,7 @@ The public task manifest contains Music and Finance examples: five Music dev tas
 Follow the README setup, then use separate output directories and the same configuration and allowance:
 
 ```bash
-for method in base harness2 mass; do
+for method in base harness2 integrate memory memory_harness2; do
   mah2 appworld --task 4ec8de5_1 --method "$method" \
     --output "runs/dev-$method-4ec8de5_1" --budget 1.0 --execute --grade
 done
@@ -40,7 +40,7 @@ python -c 'import json; m=json.load(open("config/appworld_tasks.json")); print("
 
 Use one OS process per occurrence when running in parallel: provider bindings and the released MASS driver contain process-global state. Do not invoke concurrent experiments in Python threads. Preserve the configuration, source hashes, input instruction, failed attempts, and API records. The endpoint does not support deterministic sampling seeds.
 
-The three methods share the team executor, task information, and total API allowance. They allocate that allowance differently and execute different numbers of candidates. MASS edits workflow text, while Harness² edits structured role procedures and coordination contracts. This comparison is not an isolated test of decomposition alone and does not reproduce the full trained MASS system.
+The five methods share the team executor, task information, and total API allowance. They allocate that allowance differently and execute different numbers of candidates. MASS edits workflow text, while Harness² edits structured role procedures and coordination contracts. This comparison is not an isolated test of decomposition alone and does not reproduce the full trained MASS system.
 
 ## Official evaluation boundary
 

@@ -56,5 +56,30 @@
     "scoped_glm_coordination": true,
     "max_team_steps": 8,
     "max_output_tokens": 2048
+  },
+  "fixes": {
+    "completion_contract": true,
+    "recoverable_step_errors": true,
+    "execution_output_tokens": 4096,
+    "editor_component_replies": true,
+    "evidence_head_tail": true,
+    "prefer_completed_selection": true
+  },
+  "fixes_note": "Applied to every method unless --paper-settings: public complete_task contract in team and selector prompts; syntax/JSON step errors recover (one paid retry); 4096-token code-role replies; scoped editor patches; head+tail evidence; completed runs preferred in selection. --paper-settings reproduces the recorded configuration.",
+  "memory_harness2": {
+    "stage_shares": {
+      "reference": 0.22,
+      "proposal_a": 0.06,
+      "proposal_b": 0.06,
+      "proposal_c": 0.06,
+      "candidate_a": 0.11,
+      "candidate_b": 0.11,
+      "candidate_c": 0.11,
+      "composer": 0.08,
+      "successor": 0.08,
+      "selector": 0.08,
+      "reflector": 0.03
+    },
+    "editor_evidence_max_bytes": 64000
   }
 }

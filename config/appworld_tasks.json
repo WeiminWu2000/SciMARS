@@ -193,5 +193,20 @@
   ],
   "per_method_task_cap_usd": 1,
   "judge": "official programmatic evaluator only, after selection",
-  "test_gate": "Freeze the implementation before evaluation; do not tune on held-out tasks."
+  "test_gate": "Freeze the implementation before evaluation; do not tune on held-out tasks.",
+  "memory_store": {
+    "tasks": [
+      "4ec8de5_1",
+      "d4e9306_3",
+      "396c5a2_2",
+      "6bdbc26_1",
+      "b119b1f_3",
+      "afc0fce_3",
+      "0d8a4ee_1",
+      "60d0b5b_1",
+      "6ea6792_2",
+      "d0b1f43_2"
+    ],
+    "rule": "The 5 music debug tasks above plus 5 finance-only AppWorld train/dev tasks, one per scenario, seeded hash order (seed mah2-memory-dev-finance-20261104). All scenarios are disjoint from the evaluation tasks. Used only to build the persistent memory store; no grader is called."
+  }
 }
