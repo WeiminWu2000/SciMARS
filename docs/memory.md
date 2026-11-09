@@ -72,7 +72,3 @@ Recorded results on the 20 Music/Finance Test-N tasks (GLM `z-ai/glm-5.3-flashx`
 | Integrated search (paper) | 8/20 |
 | Harness² (paper) | 10/20 |
 | **Memory + Harness²** | **11/20** |
-
-These 20 tasks informed the diagnosis, so the Memory + Harness² numbers are post-diagnostic. The fixes
-live in the shared team, so the other settings may also improve under them; `--paper-settings`
-reproduces the recorded configuration.
