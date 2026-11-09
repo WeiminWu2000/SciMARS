@@ -6,7 +6,7 @@
 
 SciMARS provides a seven-role execution team and a separate harness optimizer. The optimizer uses public execution traces to propose role and coordination changes, probe them, and select a current-round execution. You can connect an existing team through an execution callback, or use the included AppWorld and local scientific Python adapters. The editable surface follows the paper’s seven logical roles and existing handoffs.
 
-![SciMARS overview: a seven-role execution team and recursive improvement of role procedures and coordination contracts](media/scimars-overview.png)
+![SciMARS overview: a seven-role execution team and recursive improvement of role procedures and coordination contracts](media/overview.png)
 
 [Connect your team](docs/custom_teams.md) · [AppWorld quickstart](#appworld-quickstart) · [Memory](docs/memory.md) · [Design](docs/architecture.md) · [Configuration and evaluation](docs/reproduction.md) · [Your own Python task](docs/custom_tasks.md)
 
