@@ -2,11 +2,13 @@
 
 [Watch video](media/SciMARS_film.mp4) · [Paper (PDF)](paper/SciMARS.pdf) · [Cite SciMARS](#citation) · [Download BibTeX](CITATION.bib)
 
-**Improve how a team works: revise role procedures, test coordination changes, and carry the selected harness into the next round.**
+**Adapt how a multi-agent team works as task evidence changes.**
 
-SciMARS provides a seven-role execution team and a separate harness optimizer. The optimizer uses public execution traces to propose role and coordination changes, probe them, and select a current-round execution. You can connect an existing team through an execution callback, or use the included AppWorld and local scientific Python adapters. The editable surface follows the paper’s seven logical roles and existing handoffs.
+SciMARS is a framework for recursive, task-local adaptation of multi-agent harnesses in closed-loop scientific discovery. Teams coordinate analysis, experimental design, and verification, but they can lose observations, repeat work, and retain ineffective procedures. SciMARS addresses these problems through separate role and coordination editors. SciMARS + Memory adds a shared evidence graph and a third editor for the memory policy.
 
-![SciMARS overview: a seven-role execution team and recursive improvement of role procedures and coordination contracts](media/overview.png)
+The paper studies the discovery interface through experimental-data replay and a digital twin, with scientific programming and interactive tasks as complementary settings. This does not involve new physical wet-lab execution. This repository provides reusable harness components, an AppWorld adapter, and local scientific Python examples. Connect your existing team through an execution callback to use the adaptation loop in your own environment.
+
+![SciMARS overview: execution roles, optional shared memory, and separate role, coordination, and memory-policy editors](media/overview.png)
 
 [Connect your team](docs/custom_teams.md) · [AppWorld quickstart](#appworld-quickstart) · [Memory](docs/memory.md) · [Design](docs/architecture.md) · [Configuration and evaluation](docs/reproduction.md) · [Your own Python task](docs/custom_tasks.md)
 
@@ -63,34 +65,39 @@ The AppWorld configuration uses `z-ai/glm-5.3-flashx`, two outer rounds, and one
 | AppWorld `--method` | What it does |
 |---|---|
 | `base` | Runs the fixed seven-role team once, without outer revisions. |
-| `harness2` | Proposes role and coordination changes separately, probes candidates, and composes a successor. |
+| `harness2` — SciMARS | Uses separate role and coordination editors, probes their proposals, and composes a successor. |
 | `integrate` | Integrated workflow search: the released MASS revision and selection procedure with the same team executor (alias `mass`). |
-| `memory` | The base team plus a shared memory graph; optionally seeded by a persistent store built on disjoint tasks. |
-| `memory_harness2` | Memory graph plus Harness² with a third, memory-policy editor; each proposal is probed and the composer combines them. |
+| `memory` — Multi-Agent + Memory | Adds a shared evidence graph to the base team. Graph contents grow, while the memory policy stays fixed. |
+| `memory_harness2` — SciMARS + Memory | Adds the graph and a third editor that adapts the memory policy alongside roles and coordination. |
+
+## Shared memory and memory-policy adaptation
+
+The shared graph retains observations, agent notes, and links to their sources. Agents receive retrieved evidence and updates through their role's memory policy. The policy controls what each role records, what it retrieves, and which updates it receives.
+
+**Memory contents and memory policy are distinct.** In `memory`, agents add evidence under a fixed policy. In `memory_harness2`, a separate LLM editor proposes policy changes; it does not rewrite host-recorded observations or measurement values. The three editors can use the same underlying language model. The memory-policy editor is a separate call, not a requirement for another model.
+
+Each candidate starts with a fresh graph or its own copy of an optional store built from disjoint development tasks. Evaluation-task writes do not transfer to later tasks. To use memory without building a store:
 
 ```bash
-python scripts/build_appworld_memory.py --output runs/appworld_store --execute   # optional, about $1-2
-mah2 appworld --task 1150ed6_2 --method memory_harness2 --memory-store runs/appworld_store/store \
-  --output runs/mh2-1150ed6_2 --budget 1.0 --execute --grade
+mah2 appworld --task 1150ed6_2 --method memory_harness2 \
+  --output runs/scimars-memory-demo --budget 1.0 --execute --grade
 ```
 
-All five share the team, task information, model and the $1 per-task allowance (editing, probes,
-retries and selection included). The `fixes` block of `config/appworld.json` applies to every method:
-the public `complete_task` contract in team and selector prompts, recoverable syntax/JSON step errors,
-4096-token code replies, scoped editor patches, head-and-tail evidence and completed-run-first selection.
-`--paper-settings` turns it off to reproduce the recorded configuration. See [memory](docs/memory.md).
+Use `--method memory` for the fixed-policy setting. See [the memory guide](docs/memory.md) for the optional store and policy schema.
+
+All five settings use the same team executor. The per-task allowance includes editing, probes, retries, and selection. `config/appworld.json` controls the shared runtime options; `--paper-settings` disables the later runtime fixes to select the recorded configuration. Keep these options, task information, model, and resource limits matched when comparing settings.
 
 `integrate` requires `python scripts/fetch_dependencies.py --include-mass`. Its source is obtained separately and is not redistributed here. The AppWorld adapter runs Python/API interactions through the shared team; it does not require the Qwen-code executor used by the local-file MASS adapter. This is a workflow-search adaptation, not the full trained MASS system. See [the comparison protocol](docs/reproduction.md).
 
 ## How it works
 
-1. **Execute the current team.** Analyzer, planner, coder, verifier, router, debugger, and finalizer work in a fresh AppWorld state.
-2. **Propose two scoped changes.** The role editor preserves coordination; the coordination editor preserves roles and changes one route or handoff contract.
-3. **Probe and compose.** Execute the role and coordination candidates in separate fresh states. Compose a successor using their public traces. Reuse a same-round execution only when the complete harness and program hash match.
-4. **Select and repeat.** Select among the current round's runnable candidates using public observations. Carry the selected harness and task-local lessons into the next round.
-5. **Commit, then evaluate.** Grade only the final selected AppWorld state. Official scores never enter editor or selection prompts.
+1. **Execute the reference team.** Seven logical roles—analyzer, planner, coder, verifier, router, debugger, and finalizer—produce task evidence under the current harness.
+2. **Propose separate changes.** Role and coordination editors work from the same reference. SciMARS + Memory adds a memory-policy editor. Each proposal stays within its editable component.
+3. **Probe and compose.** Execute candidates in isolated states. Use their public traces to compose a successor. Probe a new combination; reuse an execution only when the same-round identity checks pass.
+4. **Select and reflect.** Select a current-round program–harness pair using public evidence. Carry the selected harness and lessons into the next round. Earlier unselected programs cannot re-enter selection.
+5. **Commit, then evaluate.** AppWorld's official evaluator grades the final committed state. Hidden scores do not enter proposal or selection prompts.
 
-The optimizer is separate from the execution team. It adapts role instructions and existing handoffs; it does not rewrite itself. Each task starts with the initial harness. Completion claims and error-free executions are not proof that a task is solved.
+Recursion means repeating this task-local adaptation loop. The optimizer remains separate from the execution team and does not rewrite itself. A selected successor can retain the reference or adopt supported component changes; composition does not require accepting every proposal. Public probes guide selection but do not guarantee improvement on the official task metric.
 
 ## Settings and local artifacts
 
