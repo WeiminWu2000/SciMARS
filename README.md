@@ -72,6 +72,8 @@ The AppWorld configuration uses `z-ai/glm-5.3-flashx`, two outer rounds, and one
 
 ## Shared memory and memory-policy adaptation
 
+The released memory integration targets AppWorld.
+
 The shared graph retains observations, agent notes, and links to their sources. Agents receive retrieved evidence and updates through their role's memory policy. The policy controls what each role records, what it retrieves, and which updates it receives.
 
 **Memory contents and memory policy are distinct.** In `memory`, agents add evidence under a fixed policy. In `memory_harness2`, a separate LLM editor proposes policy changes; it does not rewrite host-recorded observations or measurement values. The three editors can use the same underlying language model. The memory-policy editor is a separate call, not a requirement for another model.
