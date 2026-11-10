@@ -1,6 +1,6 @@
 # SciMARS: Multi-Agent Recursive Self-Improvement for Closed-Loop Scientific Discovery
 
-[Watch video](media/SciMARS_film.mp4) · [Paper (PDF)](paper/SciMARS.pdf) · [Cite SciMARS](#citation) · [Download BibTeX](CITATION.bib)
+[Watch video](media/SciMARS_film.mp4) · [Paper (Arxiv)](https://arxiv.org/abs/2611.12552) · [Cite SciMARS](#citation) · [Download BibTeX](CITATION.bib)
 
 **Adapt how a multi-agent team works as task evidence changes.**
 
@@ -137,9 +137,9 @@ If you use SciMARS, please cite our paper:
 @misc{wu2026scimars,
   title        = {{SciMARS}: Multi-Agent Recursive Self-Improvement for Closed-Loop Scientific Discovery},
   author       = {Wu, Weimin and Liu, Han},
-  year         = {2026},
+  year         = {arXiv preprint arXiv:2611.12552},
   howpublished = {preprint},
-  url          = {https://github.com/WeiminWu2000/SciMARS/blob/main/paper/SciMARS.pdf}
+  url          = {https://arxiv.org/abs/2611.12552}
 }
 ```
 
